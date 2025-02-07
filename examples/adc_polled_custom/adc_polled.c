@@ -12,35 +12,51 @@
 void adc_init( void )
 {
 	// ADCCLK = 24 MHz => RCC_ADCPRE = 0: divide by 2
+	// RCC - Reset & Clock Control
+	// CFGR0 - Register to configure system clocks and prescalers
+	// bits 11-15 hold the ADC prescaler config 
+		//-> setting them to 0 puts them into default 
+		//-> updates on every  tick of the system clock
+		//-> increase value toadjust frequency
 	RCC->CFGR0 &= ~(0x1F<<11);
 	
 	// Enable GPIOD and ADC
+	// APB2PCENR -> APB2 (BUS) Peripheral Clock Enable Register
 	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD | RCC_APB2Periph_ADC1;
 	
 	// PD4 is analog input chl 7
+	// GPIO Port D
+	// CFGLR - Configuration Register Low - for pins Do to D7
+	// Bits [16:19] for PD4
+	// &= ~(0xf<<(4*4)) - clears all 4 bits of PD4, setting it to Analog Input Mode
 	GPIOD->CFGLR &= ~(0xf<<(4*4));	// CNF = 00: Analog, MODE = 00: Input
 	
 	// Reset the ADC to init all regs
-	RCC->APB2PRSTR |= RCC_APB2Periph_ADC1;
-	RCC->APB2PRSTR &= ~RCC_APB2Periph_ADC1;
+	// APB2 Peripheral Reset Register
+	RCC->APB2PRSTR |= RCC_APB2Periph_ADC1; // Overwrites all of ADC1s and clears all corresponding registers
+	RCC->APB2PRSTR &= ~RCC_APB2Periph_ADC1; // back to normal operation
 	
 	// Set up single conversion on chl 7
-	ADC1->RSQR1 = 0;
-	ADC1->RSQR2 = 0;
-	ADC1->RSQR3 = 7;	// 0-9 for 8 ext inputs and two internals
+	ADC1->RSQR1 = 0;	// enable single conversion (only PD4)
+	ADC1->RSQR2 = 0;	// clear multi channel sequence
+	ADC1->RSQR3 = 7;	// 0-9 for 8 ext inputs and two internals 
+		// -> sets ADC channel 7 aka. PD4 aka. A7 as the input source for the ADC
 	
 	// set sampling time for chl 7
-	ADC1->SAMPTR2 &= ~(ADC_SMP0<<(3*7));
-	ADC1->SAMPTR2 |= 7<<(3*7);	// 0:7 => 3/9/15/30/43/57/73/241 cycles
+	// SAMPTR2 sample rate register for channel 0-9
+	// SAMPTR1 for channel 9 - 17 WHY???? AAhhhhhh
+	ADC1->SAMPTR2 &= ~(ADC_SMP0<<(3*7)); // resetting sample rate for channel 7
+	ADC1->SAMPTR2 |= 7<<(3*7);	// 0:7 => 3/9/15/30/43/57/73/241 cycles 
+	// -> sets 3bit val for channel 7 to 21 -> maximum sample rate 241
 		
-	// turn on ADC and set rule group to sw trig
+	// turn on ADC and set rule group to sw trig (software trigger // not Analog Input triggered)
 	ADC1->CTLR2 |= ADC_ADON | ADC_EXTSEL;
 	
 	// Reset calibration
 	ADC1->CTLR2 |= ADC_RSTCAL;
 	while(ADC1->CTLR2 & ADC_RSTCAL);
 	
-	// Calibrate
+	// Calibrate with the adjusted controoler CTRL2
 	ADC1->CTLR2 |= ADC_CAL;
 	while(ADC1->CTLR2 & ADC_CAL);
 	
