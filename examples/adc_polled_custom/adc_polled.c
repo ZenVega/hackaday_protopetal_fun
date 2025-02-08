@@ -6,6 +6,9 @@
 #include "ch32v003fun.h"
 #include <stdio.h>
 
+//#define AUTO_RELOAD 1024
+#define AUTO_RELOAD 32768
+
 /*
  * initialize adc for polling
  */
@@ -97,10 +100,10 @@ void t1pwm_init( void )
 	GPIOD->CFGLR &= ~(0xf<<(4*0)); // clear all bits of PD0
 	GPIOD->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF)<<(4*0); 
 	
-	// PC0 is T1CH4(Can use Tim1 and Tim2), 10MHz Output alt func, push-pull
+	// PC4 is T1CH4(Can use Tim1 and Tim2), 10MHz Output alt func, push-pull
 	//	-> Diagram says Channel 3. Why T1CH4???
-	GPIOC->CFGLR &= ~(0xf<<(4*0));
-	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF)<<(4*0);
+	GPIOC->CFGLR &= ~(0xf<<(4*4));
+	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF)<<(4*4);
 		
 	// Reset TIM1 to init all regs
 	RCC->APB2PRSTR |= RCC_APB2Periph_TIM1;
@@ -113,7 +116,7 @@ void t1pwm_init( void )
 	TIM1->PSC = 0x0000; //Default prescaler option (every system tick)
 	
 	// Auto Reload - sets period
-	TIM1->ATRLR = 255; // Timer counts to that value before restart
+	TIM1->ATRLR = AUTO_RELOAD; // Timer counts to that value before restart
 	
 	// Reload immediately
 	// SWEVGR - Software Event Generation Register
@@ -191,6 +194,7 @@ void t1pwm_force(uint8_t chl, uint8_t val)
 	}
 }
 
+
 /*
  * entry
  */
@@ -212,9 +216,9 @@ int main()
 	while(1)
 	{
 		int width = adc_get();
-		int pwm = width*255/1024;
+		int pwm = width*AUTO_RELOAD/1024;
 		t1pwm_setpw(0, pwm);
-		t1pwm_setpw(2, 200);
+		t1pwm_setpw(3, pwm);
 		Delay_Ms(10);
 	}
 }
