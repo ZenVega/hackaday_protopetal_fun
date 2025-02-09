@@ -6,8 +6,8 @@
 #include "ch32v003fun.h"
 #include <stdio.h>
 
-//#define AUTO_RELOAD 1024
-#define AUTO_RELOAD 32768
+#define AUTO_RELOAD 255
+//#define AUTO_RELOAD 32768
 
 /*
  * initialize adc for polling
@@ -84,75 +84,74 @@ uint16_t adc_get( void )
 	return ADC1->RDATAR;
 }
 
-
-/*
- * initialize TIM1 for PWM
- */
 void t1pwm_init( void )
 {
 	// Enable GPIOC, GPIOD and TIM1
 	// APB2PCENR -> APB2 (BUS) Peripheral Clock Enable Register
 	RCC->APB2PCENR |= 	RCC_APB2Periph_GPIOD | RCC_APB2Periph_GPIOC |
-						RCC_APB2Periph_TIM1;
-	
+						RCC_APB2Periph_TIM1 | RCC_APB2Periph_AFIO;
+
 	// PD0 is using T1CH1N (Timer 1, Channel 1), 10MHz Output alt func, push-pull
 	// CFGLR - Configuration Register Low - for pins Do to D7
 	GPIOD->CFGLR &= ~(0xf<<(4*0)); // clear all bits of PD0
 	GPIOD->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF)<<(4*0); 
-	
-	// PC4 is T1CH4(Can use Tim1 and Tim2), 10MHz Output alt func, push-pull
+
+	// PC0 is T1CH4, 10MHz Output alt func, push-pull
+	// PC0 is T1CH4(Can use Tim1 and Tim2), 10MHz Output alt func, push-pull
 	//	-> Diagram says Channel 3. Why T1CH4???
-	GPIOC->CFGLR &= ~(0xf<<(4*4));
-	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP_AF)<<(4*4);
-		
-	// Reset TIM1 to init all regs
-	RCC->APB2PRSTR |= RCC_APB2Periph_TIM1;
-	RCC->APB2PRSTR &= ~RCC_APB2Periph_TIM1;
-	
-	// CTLR1: default is up, events generated, edge align
+	GPIOC->CFGLR &= ~(0xFu << (4 * 0));     // clear pin configuration
+	GPIOC->CFGLR |= (0xBu << (4 * 0));
+
+	// afio setup
+	AFIO->PCFR1 |= (1 << 6);
 	// SMCFGR: default clk input is CK_INT
-	
+
 	// Prescaler 
+	TIM1->PSC = 0x0000;
 	TIM1->PSC = 0x0000; //Default prescaler option (every system tick)
-	
+
 	// Auto Reload - sets period
-	TIM1->ATRLR = AUTO_RELOAD; // Timer counts to that value before restart
-	
+	TIM1->ATRLR = 255;
+	TIM1->ATRLR = 255; // Timer counts to that value before restart
+
 	// Reload immediately
+	TIM1->SWEVGR |= TIM_UG;
 	// SWEVGR - Software Event Generation Register
 	TIM1->SWEVGR |= TIM_UG; // Update Generation - reloads the timer's prescaler, counter, and registers.
-	
+
 	// Enable CH1N output, positive pol
 	// CCER - CaptureCompare Enable Reg
 	TIM1->CCER |= TIM_CC1NE | TIM_CC1NP;
-	
+
 	// Enable CH4 output, positive pol
 	TIM1->CCER |= TIM_CC4E | TIM_CC4P;
-	
+
 	// CH1 Mode is output, PWM1 (CC1S = 00, OC1M = 110)
 	// CHCTLR1 - Channel Control Reg 1 -> specifies behavior of the output pin
 	TIM1->CHCTLR1 |= TIM_OC1M_2 | TIM_OC1M_1;
-	
+
 	// CH2 Mode is output, PWM1 (CC1S = 00, OC1M = 110)
 	TIM1->CHCTLR2 |= TIM_OC4M_2 | TIM_OC4M_1;
-
 	//What about Channel 3? 
 	//What happens if CHCTLR2 is not set? No Output?
-	
+
 	// Set the Capture Compare Register value to 50% initially
 	// CHxCVR - Capture/Compare Value Register
 	// Sets the duty cycle compared to TIM1->ATRLR
 	TIM1->CH1CVR = 128;
 	TIM1->CH4CVR = 128;
-	
+
 	// Enable TIM1 outputs
+	TIM1->BDTR |= TIM_MOE;
 	// BDTR - Break Dead Time Reg
 	// Defines behaviour of Timer
 	TIM1->BDTR |= TIM_MOE; // MOE - Main Output Enabled
-	
+
 	// Enable TIM1
+	TIM1->CTLR1 |= TIM_CEN;
 	TIM1->CTLR1 |= TIM_CEN; // CEN - CounterENabled
 }
+
 
 /*
  * set timer channel PW
@@ -205,13 +204,6 @@ int main()
 
 	adc_init();
 	t1pwm_init();
-
-	// Enable GPIOs
-	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD; // Has already been set in adc_init and t1pwm_init. Redundant!
-
-	// GPIO D0 Push-Pull
-	//GPIOD->CFGLR &= ~(0xf<<(4*0));
-	//GPIOD->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*0);
 
 	while(1)
 	{
