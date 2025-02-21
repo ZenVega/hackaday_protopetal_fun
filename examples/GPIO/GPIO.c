@@ -1,9 +1,9 @@
 // 2023-06-26 recallmenot
 
-#define DEMO_GPIO_blink					1
+#define DEMO_GPIO_blink					0
 #define DEMO_GPIO_blink_port				0
 #define DEMO_GPIO_out					0
-#define DEMO_GPIO_in_btn				0
+#define DEMO_GPIO_in_btn				1
 #define DEMO_ADC_bargraph				0
 #define DEMO_PWM_dayrider				0
 
@@ -123,7 +123,7 @@ int main() {
 			Delay_Ms(50);
 		}
 #elif DEMO_GPIO_in_btn == 1
-		uint8_t button_is_pressed = !GPIO_digitalRead(GPIOv_from_PORT_PIN(GPIO_port_D, 3));
+		uint8_t button_is_pressed = !GPIO_digitalRead(GPIOv_from_PORT_PIN(GPIO_port_C, 0));
 		static uint8_t leds_to_turn_on;
 		if (button_is_pressed && leds_to_turn_on < 8) {
 			leds_to_turn_on++;

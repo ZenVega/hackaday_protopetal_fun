@@ -28,7 +28,6 @@ int main()
 		GPIOC->OUTDR |= 1<<(4);    // SET GPIO C4
 		Delay_Ms( 950 );
 
-
 		// Use upper bits of BSHR to RESET output
 		GPIOC->BSHR = (1<<(16+1)); // RESET GPIO C1
 

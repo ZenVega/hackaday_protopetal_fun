@@ -4,6 +4,7 @@
  */
 
 #include "ch32v003fun.h"
+#include "ch32v003_GPIO_branchless.h"
 #include <stdio.h>
 
 //#define AUTO_RELOAD 1024
@@ -154,6 +155,27 @@ void t1pwm_init( void )
 	TIM1->CTLR1 |= TIM_CEN; // CEN - CounterENabled
 }
 
+void	gpio_init()
+{
+	// Enable GPIOC
+	RCC->APB2PCENR |= RCC_APB2Periph_GPIOC;
+
+	// GPIO C0 Push-Pull Input
+	GPIOC->CFGLR &= ~(0xf<<(4*0));
+	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD)<<(4*0);
+
+	// GPIO C4 Push-Pull
+	GPIOC->CFGLR &= ~(0xf<<(4*4));
+	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*4);
+
+	// GPIO C5 Push-Pull
+	GPIOC->CFGLR &= ~(0xf<<(4*5));
+	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*5);
+
+	// GPIO C6 Push-Pull
+	GPIOC->CFGLR &= ~(0xf<<(4*6));
+	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*6);
+}
 /*
  * set timer channel PW
  */
@@ -199,19 +221,14 @@ void t1pwm_force(uint8_t chl, uint8_t val)
  * entry
  */
 int main()
-{	
+{
+	int	button_pressed;
 	SystemInit();
 	Delay_Ms( 100 );
 
 	adc_init();
 	t1pwm_init();
-
-	// Enable GPIOs
-	RCC->APB2PCENR |= RCC_APB2Periph_GPIOD; // Has already been set in adc_init and t1pwm_init. Redundant!
-
-	// GPIO D0 Push-Pull
-	//GPIOD->CFGLR &= ~(0xf<<(4*0));
-	//GPIOD->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*0);
+	gpio_init();
 
 	while(1)
 	{
@@ -219,6 +236,26 @@ int main()
 		int pwm = width*AUTO_RELOAD/1024;
 		t1pwm_setpw(0, pwm);
 		t1pwm_setpw(3, pwm);
+		// INDR - Input Data Regsister
+        button_pressed = !(GPIOC->INDR & (1 << 0));  // Active-low button
+		if (button_pressed)
+		{
+			// Bit Set/Reset Register
+			GPIOC->BSHR = 1<<(4);
+			Delay_Ms( 500 );
+			GPIOC->BSHR = 1<<(5);
+			Delay_Ms( 500 );
+			GPIOC->BSHR = 1<<(6);
+		}
+		else
+		{
+			// Bit CLEAR Register
+			GPIOC->BCR = (1<<(4));
+			Delay_Ms( 500 );
+			GPIOC->BCR = (1<<(5));
+			Delay_Ms( 500 );
+			GPIOC->BCR = (1<<(6));
+		}
 		Delay_Ms(10);
 	}
 }
