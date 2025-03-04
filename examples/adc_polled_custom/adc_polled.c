@@ -128,7 +128,7 @@ void t1pwm_init( void )
 	TIM1->CCER |= TIM_CC1NE | TIM_CC1NP;
 	
 	// Enable CH4 output, positive pol
-	TIM1->CCER |= TIM_CC4E | TIM_CC4P;
+	TIM1->CCER |= TIM_CC4E | TIM_CC4NP;
 	
 	// CH1 Mode is output, PWM1 (CC1S = 00, OC1M = 110)
 	// CHCTLR1 - Channel Control Reg 1 -> specifies behavior of the output pin
@@ -164,6 +164,10 @@ void	gpio_init()
 	GPIOC->CFGLR &= ~(0xf<<(4*0));
 	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD)<<(4*0);
 
+	// GPIO D6 Push-Pull Input
+	GPIOD->CFGLR &= ~(0xf<<(4*6));
+	GPIOD->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_IN_PUPD)<<(4*6);
+
 	// GPIO C4 Push-Pull
 	GPIOC->CFGLR &= ~(0xf<<(4*4));
 	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*4);
@@ -175,6 +179,11 @@ void	gpio_init()
 	// GPIO C6 Push-Pull
 	GPIOC->CFGLR &= ~(0xf<<(4*6));
 	GPIOC->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*6);
+
+	// GPIO D0 Push-Pull
+	GPIOD->CFGLR &= ~(0xf<<(4*0));
+	GPIOD->CFGLR |= (GPIO_Speed_10MHz | GPIO_CNF_OUT_PP)<<(4*0);
+
 }
 /*
  * set timer channel PW
@@ -216,45 +225,65 @@ void t1pwm_force(uint8_t chl, uint8_t val)
 	}
 }
 
+void	trigger_solenoid(int *s_triggered)
+{
+	//Turn on Solenoid
+	GPIOC->BSHR = 1<<(5);
+	Delay_Ms(500);
+	//Turn off Solenoid
+	GPIOC->BCR = (1<<(5));
+	*s_triggered = 1;
+}
 
 /*
  * entry
  */
 int main()
 {
-	int	button_pressed;
+	int	button_pressed_c0;
+	int	button_pressed_d6;
+	int width;
+	int pwm;
+	int s_triggered = 0;
+
 	SystemInit();
 	Delay_Ms( 100 );
 
 	adc_init();
-	t1pwm_init();
 	gpio_init();
+	t1pwm_init();
+	t1pwm_setpw(3, 0);
+	t1pwm_setpw(0, 0);
 
 	while(1)
 	{
-		int width = adc_get();
-		int pwm = width*AUTO_RELOAD/1024;
-		t1pwm_setpw(0, pwm);
-		t1pwm_setpw(3, pwm);
+		width = adc_get();
+		pwm = width*AUTO_RELOAD/1024;
 		// INDR - Input Data Regsister
-        button_pressed = !(GPIOC->INDR & (1 << 0));  // Active-low button
-		if (button_pressed)
+        button_pressed_c0 = !(GPIOC->INDR & (1 << 0));  // Active-low butto
+        button_pressed_d6 = !(GPIOD->INDR & (1 << 6));  // Active-low butto
+		if (button_pressed_c0 || button_pressed_d6)
 		{
 			// Bit Set/Reset Register
-			GPIOC->BSHR = 1<<(4);
-			Delay_Ms( 500 );
-			GPIOC->BSHR = 1<<(5);
-			Delay_Ms( 500 );
 			GPIOC->BSHR = 1<<(6);
+			//GPIOC->BCR = (1<<(4));
+			//GPIOD->BSHR = 1<<(0);
+			// Activate PWM
+			//t1pwm_setpw(3, pwm);
+			t1pwm_setpw(3, pwm);
+			t1pwm_setpw(0, pwm);
+			if (0 && !s_triggered)
+				trigger_solenoid(&s_triggered);
 		}
 		else
 		{
 			// Bit CLEAR Register
-			GPIOC->BCR = (1<<(4));
-			Delay_Ms( 500 );
-			GPIOC->BCR = (1<<(5));
-			Delay_Ms( 500 );
+			//GPIOD->BCR = (1<<(0));
 			GPIOC->BCR = (1<<(6));
+			// Deactivate PWM
+			t1pwm_setpw(0, 0);
+			t1pwm_setpw(3, 0);
+			s_triggered = 0;
 		}
 		Delay_Ms(10);
 	}
